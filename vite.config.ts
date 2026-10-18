@@ -6,11 +6,10 @@
 // You can pass additional config via defineConfig({ vite: { ... }, etc... }) if needed.
 import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 
-// This wrapper forwards Nitro options. Keep the Cloudflare preset's
-// code-splitting mode consistent with Nitro's bundle settings.
+// This application is deployed to Vercel, so Nitro must emit Vercel's
+// deployment output rather than a Cloudflare worker bundle.
 const nitroOptions = {
-  preset: "cloudflare-module" as const,
-  inlineDynamicImports: false,
+  preset: "vercel" as const,
 };
 
 export default defineConfig({
