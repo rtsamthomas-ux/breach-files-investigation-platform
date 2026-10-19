@@ -124,7 +124,7 @@ const STAGES: Stage[] = [
 ];
 
 const EVIDENCE_SUMMARY = [
-  { label: "Network events", count: 6, icon: Network },
+  { label: "Network & DNS events", count: 6, icon: Network },
   { label: "Access records", count: 15, icon: KeyRound },
   { label: "Evidence artifacts", count: 14, icon: FileSearch },
   { label: "Witness interviews", count: 4, icon: Users },
@@ -406,20 +406,30 @@ function Dashboard() {
   const activeStage = STAGES.find((stage) => stage.key === view);
 
   return (
-    <div className="flex min-h-screen bg-background text-foreground">
-      <aside className="flex w-60 shrink-0 flex-col border-r border-sidebar-border bg-sidebar">
+    <div className="flex min-h-screen flex-col bg-background text-foreground md:flex-row">
+      <a
+        href="#main-content"
+        className="sr-only z-50 bg-primary px-4 py-2 font-mono text-xs font-bold text-primary-foreground focus:not-sr-only focus:absolute focus:left-3 focus:top-3"
+      >
+        Skip to investigation
+      </a>
+      <aside className="flex w-full shrink-0 flex-col border-b border-sidebar-border bg-sidebar md:w-60 md:border-b-0 md:border-r">
         <div className="flex h-14 items-center gap-2 border-b border-sidebar-border px-4">
           <Fingerprint className="h-5 w-5 text-primary" />
           <span className="font-mono text-sm font-bold tracking-widest">BREACH FILES</span>
         </div>
 
-        <nav className="flex-1 space-y-0.5 p-2">
+        <nav
+          aria-label="Investigation sections"
+          className="flex gap-1 overflow-x-auto p-2 md:flex-1 md:flex-col md:space-y-0.5"
+        >
           {nav.map((item) => (
             <button
               key={item.key}
               onClick={() => open(item.key)}
               disabled={item.locked}
-              className={`flex w-full items-center gap-3 rounded-sm px-3 py-2 text-left text-sm transition-colors ${
+              aria-current={view === item.key ? "page" : undefined}
+              className={`flex w-auto shrink-0 items-center gap-2 rounded-sm px-3 py-2 text-left text-sm transition-colors md:w-full md:gap-3 ${
                 view === item.key
                   ? "border-l-2 border-primary bg-sidebar-accent text-sidebar-accent-foreground"
                   : "border-l-2 border-transparent text-sidebar-foreground hover:bg-sidebar-accent/60"
@@ -432,7 +442,7 @@ function Dashboard() {
           ))}
         </nav>
 
-        <div className="border-t border-sidebar-border p-4 font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
+        <div className="hidden border-t border-sidebar-border p-4 font-mono text-[10px] uppercase tracking-widest text-muted-foreground md:block">
           Forensics Terminal v0.3
         </div>
       </aside>
@@ -465,7 +475,11 @@ function Dashboard() {
           </div>
         </header>
 
-        <main className="grid-bg flex-1 overflow-auto p-6">
+        <main
+          id="main-content"
+          tabIndex={-1}
+          className="grid-bg min-w-0 flex-1 overflow-auto p-4 focus:outline-none sm:p-6"
+        >
           {view === "leaderboard" ? (
             <div className="mx-auto max-w-6xl space-y-4">
               <button
@@ -947,6 +961,7 @@ function NetworkInvestigation({
             <div className="relative">
               <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
               <input
+                aria-label="Search evidence records"
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
                 placeholder="Search IDs, hosts, details, keywords..."
@@ -1167,10 +1182,14 @@ function NetworkInvestigation({
 
         <div className="grid gap-5 md:grid-cols-2">
           <div className="space-y-2">
-            <label className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
+            <label
+              htmlFor="network-finding"
+              className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground"
+            >
               01 / Primary conclusion
             </label>
             <select
+              id="network-finding"
               value={finding}
               onChange={(event) => setFinding(event.target.value)}
               className="w-full border border-border bg-background p-3 text-sm outline-none focus:border-primary"
@@ -1192,10 +1211,14 @@ function NetworkInvestigation({
           </div>
 
           <div className="space-y-2">
-            <label className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
+            <label
+              htmlFor="network-evidence-ids"
+              className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground"
+            >
               02 / Evidence IDs
             </label>
             <input
+              id="network-evidence-ids"
               value={evidenceIds}
               onChange={(event) => setEvidenceIds(event.target.value)}
               placeholder="Example: DOC-06, EXP-09, NET-10"
@@ -1207,10 +1230,14 @@ function NetworkInvestigation({
           </div>
 
           <div className="space-y-2">
-            <label className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
+            <label
+              htmlFor="network-alternative"
+              className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground"
+            >
               03 / Alternative explanation
             </label>
             <textarea
+              id="network-alternative"
               value={alternative}
               onChange={(event) => setAlternative(event.target.value)}
               rows={4}
@@ -1221,10 +1248,14 @@ function NetworkInvestigation({
           </div>
 
           <div className="space-y-2">
-            <label className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
+            <label
+              htmlFor="network-next-evidence"
+              className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground"
+            >
               04 / Next evidence request
             </label>
             <textarea
+              id="network-next-evidence"
               value={nextEvidence}
               onChange={(event) => setNextEvidence(event.target.value)}
               rows={4}
@@ -1235,10 +1266,14 @@ function NetworkInvestigation({
           </div>
 
           <div className="space-y-2 md:col-span-2">
-            <label className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
+            <label
+              htmlFor="network-reasoning"
+              className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground"
+            >
               05 / Reasoning and timeline
             </label>
             <textarea
+              id="network-reasoning"
               value={reasoning}
               onChange={(event) => setReasoning(event.target.value)}
               rows={5}
