@@ -17,6 +17,7 @@ import {
   RESPONSE_DECISION_OPTIONS,
   SAFE_RECOVERY_STEPS,
   calculateIncidentResponseScore,
+  type IncidentResponseState,
 } from "../lib/stage5-response";
 import { submitStageServerFn } from "../api/submissions";
 
@@ -55,69 +56,80 @@ export function IncidentResponse({
   authToken,
   onComplete,
   initialPhase = 1,
+  initialResponse,
 }: {
   done: boolean;
   authToken?: string | undefined;
-  onComplete: () => void;
+  onComplete: (response: IncidentResponseState) => void;
   initialPhase?: Phase | 5;
+  initialResponse?: IncidentResponseState;
 }) {
-  const normalizedInitial: Phase = initialPhase === 5 ? "completion" : initialPhase;
+  const normalizedInitial: Phase =
+    done || initialResponse ? "completion" : initialPhase === 5 ? "completion" : initialPhase;
   const [currentPhase, setCurrentPhase] = useState<Phase>(normalizedInitial);
   const [highestVisitedPhase, setHighestVisitedPhase] = useState<number>(
     done ? 5 : normalizedInitial === "completion" ? 5 : normalizedInitial,
   );
   const [showResetConfirm, setShowResetConfirm] = useState(false);
-  const [isSubmitted, setIsSubmitted] = useState(done);
+  const [isSubmitted, setIsSubmitted] = useState(done || Boolean(initialResponse));
   const [submissionMessage, setSubmissionMessage] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Phase 1 State
-  const [phase1, setPhase1] = useState<Phase1State>({
-    selectedActionIds: ["ACT-01", "ACT-02"],
-    actionPriorities: {
-      "ACT-01": "immediate",
-      "ACT-02": "immediate",
+  const [phase1, setPhase1] = useState<Phase1State>(
+    initialResponse?.phase1 ?? {
+      selectedActionIds: ["ACT-01", "ACT-02"],
+      actionPriorities: {
+        "ACT-01": "immediate",
+        "ACT-02": "immediate",
+      },
+      justification: "",
     },
-    justification: "",
-  });
+  );
 
   // Phase 2 State
-  const [phase2, setPhase2] = useState<Phase2State>({
-    selectedSourceIds: ["SRC-01", "SRC-02", "SRC-03", "SRC-04"],
-    sourcePriorities: {
-      "SRC-01": 1,
-      "SRC-02": 1,
-      "SRC-03": 1,
-      "SRC-04": 1,
+  const [phase2, setPhase2] = useState<Phase2State>(
+    initialResponse?.phase2 ?? {
+      selectedSourceIds: ["SRC-01", "SRC-02", "SRC-03", "SRC-04"],
+      sourcePriorities: {
+        "SRC-01": 1,
+        "SRC-02": 1,
+        "SRC-03": 1,
+        "SRC-04": 1,
+      },
+      custodian: "Incident Response Lead (SecOps)",
+      acquisitionMethod: "Read-only snapshot with SHA-256 verification and container log freeze",
+      evidenceLockerLocation: "Forensic Storage Vault / S3 read-only legal-hold enclave",
+      chainOfCustodyNotes: "",
     },
-    custodian: "Incident Response Lead (SecOps)",
-    acquisitionMethod: "Read-only snapshot with SHA-256 verification and container log freeze",
-    evidenceLockerLocation: "Forensic Storage Vault / S3 read-only legal-hold enclave",
-    chainOfCustodyNotes: "",
-  });
+  );
 
   // Phase 3 State
-  const [phase3, setPhase3] = useState<Phase3State>({
-    scopeResponses: {
-      "SCP-01": "Audit all access under /projects/* during config v17 deployment window.",
-      "SCP-02": "Enforce container-level IAM boundaries and remove broad S3 permissions.",
-      "SCP-03": "Verify export-worker-03 was the solitary container executing job EB-2041.",
-      "SCP-04": "Confirm STS instance profile used; rotate temporary session credentials.",
-      "SCP-05": "Correlate border gateway flow logs and request partner SFTP transfer records.",
-      "SCP-06":
-        "Attribute incident to lack of peer review on commit a94f2b1 and overly broad wildcard.",
+  const [phase3, setPhase3] = useState<Phase3State>(
+    initialResponse?.phase3 ?? {
+      scopeResponses: {
+        "SCP-01": "Audit all access under /projects/* during config v17 deployment window.",
+        "SCP-02": "Enforce container-level IAM boundaries and remove broad S3 permissions.",
+        "SCP-03": "Verify export-worker-03 was the solitary container executing job EB-2041.",
+        "SCP-04": "Confirm STS instance profile used; rotate temporary session credentials.",
+        "SCP-05": "Correlate border gateway flow logs and request partner SFTP transfer records.",
+        "SCP-06":
+          "Attribute incident to lack of peer review on commit a94f2b1 and overly broad wildcard.",
+      },
+      selectedRecoveryStepIds: ["REC-01", "REC-02", "REC-03", "REC-04", "REC-05"],
+      recoveryPlanRationale: "",
     },
-    selectedRecoveryStepIds: ["REC-01", "REC-02", "REC-03", "REC-04", "REC-05"],
-    recoveryPlanRationale: "",
-  });
+  );
 
   // Phase 4 State
-  const [phase4, setPhase4] = useState<Phase4State>({
-    decisionId: "DEC-OPT-01",
-    classifications: {},
-    decisionRationale: "",
-    nextInvestigationSteps: "",
-  });
+  const [phase4, setPhase4] = useState<Phase4State>(
+    initialResponse?.phase4 ?? {
+      decisionId: "DEC-OPT-01",
+      classifications: {},
+      decisionRationale: "",
+      nextInvestigationSteps: "",
+    },
+  );
 
   // Validation checks per phase
   const isPhase1Valid = useMemo(() => {
@@ -206,7 +218,7 @@ export function IncidentResponse({
         setIsSubmitted(true);
         setHighestVisitedPhase(5);
         setCurrentPhase("completion");
-        onComplete();
+        onComplete({ phase1, phase2, phase3, phase4 });
       } else if (result.success) {
         setSubmissionMessage(
           `Response did not meet the server pass threshold (${result.score}/100). Revise and submit again.`,
@@ -1288,7 +1300,14 @@ export function IncidentResponse({
       {/* ========================================================= */}
       {/* COMPLETION SCREEN: SCORE BREAKDOWN & CASE RESOLUTION */}
       {/* ========================================================= */}
-      {currentPhase === "completion" && (
+      {currentPhase === "completion" && done && !initialResponse && (
+        <div className="border border-amber-500/40 bg-amber-500/5 p-5 font-mono text-sm text-amber-200">
+          This browser has the stage completion record but not the submitted response details. The
+          report is hidden to avoid showing an inaccurate score. Signed submissions remain available
+          to an administrator for review.
+        </div>
+      )}
+      {currentPhase === "completion" && (!done || initialResponse) && (
         <div className="space-y-6">
           {submissionMessage && (
             <div

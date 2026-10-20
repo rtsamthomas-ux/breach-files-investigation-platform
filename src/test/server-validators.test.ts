@@ -121,17 +121,90 @@ describe("Authoritative Server-side Stage Validators", () => {
     it("validates witness claim corroboration against physical evidence", () => {
       const result = validateStage4({
         claimEvaluations: {
-          "CW-01": { status: "corroborated", citedEvidenceIds: ["CFG-AUD-202"] },
-          "CW-02": { status: "contradicted", citedEvidenceIds: ["SCH-LOG-209"] },
-          "CW-03": { status: "contradicted", citedEvidenceIds: ["ART-PRX-312"] },
-          "CW-04": { status: "corroborated" },
-          "CW-05": { status: "corroborated", citedEvidenceIds: ["ART-LOG-306"] },
-          "CW-06": { status: "contradicted" },
+          "CW-01": {
+            status: "corroborated",
+            citedEvidenceIds: ["CFG-AUD-202"],
+            justification: "Audit record confirms the configuration merge.",
+          },
+          "CW-02": {
+            status: "contradicted",
+            citedEvidenceIds: ["DOC-WEB-205"],
+            justification: "The observed wiki view predates no export linkage.",
+          },
+          "CW-03": {
+            status: "contradicted",
+            citedEvidenceIds: ["ART-PRX-312"],
+            justification: "Proxy metadata ties the request to telemetry, not export.",
+          },
+          "CW-04": {
+            status: "corroborated",
+            citedEvidenceIds: ["STS-ISS-208"],
+            justification: "The machine token records the automated identity.",
+          },
+          "CW-05": {
+            status: "contradicted",
+            citedEvidenceIds: ["ART-LOG-306"],
+            justification: "Collector clock skew explains the apparent sequence.",
+          },
+          "CW-06": {
+            status: "unverified",
+            citedEvidenceIds: ["ADM-SES-214"],
+            justification: "Available logs do not establish malicious intent.",
+          },
         },
-        accountPreference: "ACCT-01",
+        flaggedStatementIds: ["ST-MV-06", "ST-JP-06"],
+        witnessNotes: {
+          "WIT-MV": {
+            established: "Config v17 merged.",
+            disputed: "Intent is unproven.",
+            unknowns: "Partner delivery.",
+          },
+          "WIT-ER": {
+            established: "Wiki viewed.",
+            disputed: "Export trigger.",
+            unknowns: "Full timeline.",
+          },
+          "WIT-JP": {
+            established: "Alert generated.",
+            disputed: "Proxy attribution.",
+            unknowns: "Remote delivery.",
+          },
+          "WIT-RS": {
+            established: "Job ran.",
+            disputed: "Collector timestamp.",
+            unknowns: "Partner receipt.",
+          },
+        },
+        credibilityLedger: {
+          "WIT-MV": {
+            reliability: "high",
+            motive: "unverified",
+            rationale: "Technical account is corroborated; intent remains unproven.",
+          },
+          "WIT-ER": {
+            reliability: "moderate",
+            motive: "unverified",
+            rationale: "Some observations are corroborated, while attribution is speculative.",
+          },
+          "WIT-JP": {
+            reliability: "moderate",
+            motive: "benign",
+            rationale: "Triage was reasonable but proxy attribution was mistaken.",
+          },
+          "WIT-RS": {
+            reliability: "high",
+            motive: "unverified",
+            rationale:
+              "Operational details are supported; partner certificate claim is unverified.",
+          },
+        },
+        accountPreference: "CONF-ACC-1",
         conferenceUnresolvedId: "CONF-UNRES-1",
         conferenceExplainedId: "CONF-EXP-1",
         conferenceNextInquiryId: "CONF-INQ-1",
+        conferenceFollowupStatementId: "ST-MV-06",
+        followupRationale:
+          "Confirm whether the partner received the staged package and request their logs.",
       });
 
       expect(result.score).toBeGreaterThanOrEqual(75);

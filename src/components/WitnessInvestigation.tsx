@@ -32,6 +32,7 @@ import {
   CONFERENCE_EXPLAINED_CONTRADICTIONS,
   CONFERENCE_NEXT_INQUIRIES,
 } from "../lib/stage4-witnesses";
+import { calculateStage4Score } from "../lib/stage4-scoring";
 import { submitStageServerFn } from "../api/submissions";
 
 type WitnessTab = "transcripts" | "casewall" | "credibility" | "conference";
@@ -159,7 +160,7 @@ export function WitnessInvestigation({
   ).length;
 
   const totalClaimsEvaluated = Object.values(claimEvaluations).filter(
-    (c) => c.status !== "" && c.citedEvidenceIds.length > 0 && c.justification.trim().length >= 15,
+    (c) => c.status !== "" && c.citedEvidenceIds.length > 0 && c.justification.trim().length >= 25,
   ).length;
 
   const totalCredibilityEvaluated = Object.values(credibilityLedger).filter(
@@ -167,6 +168,9 @@ export function WitnessInvestigation({
   ).length;
 
   const isConferenceReady =
+    totalNotesRecorded === WITNESS_PROFILES.length &&
+    totalClaimsEvaluated === CASE_WALL_CLAIMS.length &&
+    totalCredibilityEvaluated === WITNESS_PROFILES.length &&
     selectedAccount !== "" &&
     selectedUnresolved !== "" &&
     selectedExplained !== "" &&
@@ -185,10 +189,15 @@ export function WitnessInvestigation({
           authToken,
           payload: {
             claimEvaluations,
+            flaggedStatementIds,
+            witnessNotes,
+            credibilityLedger,
             accountPreference: selectedAccount,
             conferenceUnresolvedId: selectedUnresolved,
             conferenceExplainedId: selectedExplained,
             conferenceNextInquiryId: selectedInquiry,
+            conferenceFollowupStatementId: followupStatementId,
+            followupRationale,
           },
         },
       });
@@ -205,83 +214,25 @@ export function WitnessInvestigation({
     }
   };
 
-  // Scoring engine (100 points total)
+  // Keep the displayed assessment identical to the server-side scoring rules.
   const evaluation = useMemo(() => {
-    // 1. Evidence-Grounded Claim Assessments (30 pts: 5 pts each for 6 claims)
-    let claimScore = 0;
-    for (const claim of CASE_WALL_CLAIMS) {
-      const userEval = claimEvaluations[claim.id];
-      if (userEval && userEval.status === claim.expectedStatus) {
-        claimScore += 5;
-      }
-    }
-
-    // 2. Cross-Witness Correlation & Discrepancy Spotting (20 pts)
-    let correlationScore = 0;
-    // CW-03 correctly identifies Jonah Pike's proxy mistake
-    if (claimEvaluations["CW-03"]?.status === "contradicted") correlationScore += 5;
-    // CW-02 correctly decouples Elena's web review from export batch
-    if (claimEvaluations["CW-02"]?.status === "contradicted") correlationScore += 5;
-    // CW-05 correctly resolves the clock skew discrepancy
-    if (claimEvaluations["CW-05"]?.status === "contradicted") correlationScore += 5;
-    // Flagged at least 2 statements for follow-up
-    if (flaggedStatementIds.length >= 2) correlationScore += 5;
-    correlationScore = Math.min(20, correlationScore);
-
-    // 3. Technical Evidence ID Citations (20 pts)
-    let citationScore = 0;
-    const allCitations = Object.values(claimEvaluations).flatMap((c) => c.citedEvidenceIds);
-    if (allCitations.includes("CFG-AUD-202")) citationScore += 4;
-    if (allCitations.includes("DOC-WEB-205")) citationScore += 4;
-    if (allCitations.includes("ART-PRX-312")) citationScore += 4;
-    if (allCitations.includes("STS-ISS-208")) citationScore += 4;
-    if (allCitations.includes("ART-LOG-306")) citationScore += 4;
-    citationScore = Math.min(20, citationScore);
-
-    // 4. Responsible Credibility and Intent Assessment (15 pts)
-    let credibilityScore = 0;
-    // Vance: reliability high/moderate, motive unverified (not malicious without proof)
-    const mv = credibilityLedger["WIT-MV"];
-    if (
-      mv &&
-      (mv.reliability === "high" || mv.reliability === "moderate") &&
-      mv.motive === "unverified"
-    ) {
-      credibilityScore += 5;
-    }
-    // Pike: reliability moderate (due to proxy claim error), motive benign
-    const jp = credibilityLedger["WIT-JP"];
-    if (jp && jp.reliability === "moderate" && jp.motive === "benign") {
-      credibilityScore += 5;
-    }
-    // Rostova & Sen assessed
-    const er = credibilityLedger["WIT-ER"];
-    const rs = credibilityLedger["WIT-RS"];
-    if (er && er.reliability && rs && rs.reliability) {
-      credibilityScore += 5;
-    }
-    credibilityScore = Math.min(15, credibilityScore);
-
-    // 5. Case Conference & Next-Step Justification (15 pts)
-    let conferenceScore = 0;
-    if (selectedAccount === "CONF-ACC-1") conferenceScore += 4;
-    if (selectedUnresolved === "CONF-UNRES-1") conferenceScore += 4;
-    if (selectedExplained === "CONF-EXP-1") conferenceScore += 3;
-    if (selectedInquiry === "CONF-INQ-1") conferenceScore += 4;
-    conferenceScore = Math.min(15, conferenceScore);
-
-    const totalScore = Math.min(
-      100,
-      claimScore + correlationScore + citationScore + credibilityScore + conferenceScore,
-    );
+    const result = calculateStage4Score({
+      claimEvaluations,
+      flaggedStatementIds,
+      witnessNotes,
+      credibilityLedger,
+      accountPreference: selectedAccount,
+      conferenceUnresolvedId: selectedUnresolved,
+      conferenceExplainedId: selectedExplained,
+      conferenceNextInquiryId: selectedInquiry,
+      conferenceFollowupStatementId: followupStatementId,
+      followupRationale,
+    });
 
     return {
-      totalScore,
-      claimScore,
-      correlationScore,
-      citationScore,
-      credibilityScore,
-      conferenceScore,
+      totalScore: result.score,
+      ...result.breakdown,
+      requirements: result.requirements,
       isOptimalAccount: selectedAccount === "CONF-ACC-1",
       isOptimalUnresolved: selectedUnresolved === "CONF-UNRES-1",
       isOptimalExplained: selectedExplained === "CONF-EXP-1",
@@ -295,6 +246,9 @@ export function WitnessInvestigation({
     selectedUnresolved,
     selectedExplained,
     selectedInquiry,
+    followupStatementId,
+    followupRationale,
+    witnessNotes,
   ]);
 
   const resetAll = () => {
@@ -1013,8 +967,15 @@ export function WitnessInvestigation({
               <div
                 className={isConferenceReady ? "mt-0.5 text-emerald-400" : "mt-0.5 text-amber-400"}
               >
-                {isConferenceReady ? "READY TO CONVENE" : "INCOMPLETE DECISIONS"}
+                {isConferenceReady ? "READY TO CONVENE" : "REQUIRED WORK INCOMPLETE"}
               </div>
+              {!isConferenceReady && (
+                <p className="mt-2 font-mono text-[10px] leading-relaxed text-amber-300">
+                  To submit, record notes for all 4 witnesses, assess all 6 claims with evidence and
+                  a 25-character rationale, complete all 4 credibility assessments, and finish every
+                  conference decision.
+                </p>
+              )}
             </div>
           </div>
 
@@ -1170,7 +1131,9 @@ export function WitnessInvestigation({
                     <div className="mt-1 text-violet-300">{evaluation.correlationScore} / 20</div>
                   </div>
                   <div className="border border-zinc-800 bg-black/40 p-2 font-mono">
-                    <div className="text-[9px] uppercase text-muted-foreground">Evidence IDs</div>
+                    <div className="text-[9px] uppercase text-muted-foreground">
+                      Citations & Rationale
+                    </div>
                     <div className="mt-1 text-violet-300">{evaluation.citationScore} / 20</div>
                   </div>
                   <div className="border border-zinc-800 bg-black/40 p-2 font-mono">

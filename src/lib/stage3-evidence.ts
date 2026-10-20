@@ -27,8 +27,8 @@
  *
  * 3. HASH COMPARISONS & INTEGRITY DYNAMICS:
  *    - ART-ACQ-301 vs ART-EXP-302:
- *      * Bit-for-bit identical (SHA-256: 7f83b165...d9069).
- *      * Proves the forensically acquired archive is authentic to what worker-03 staged.
+ *      * These are different files: a 4.4 MB archive and a 2.8 KB JSON manifest.
+ *      * The manifest's recorded target digest and byte count corroborate the acquired archive.
  *    - ART-ACQ-301 vs ART-VER-307:
  *      * Bit-for-bit identical (SHA-256: 7f83b165...d9069).
  *      * Proves bitstream integrity preserved across chain of custody.
@@ -145,7 +145,7 @@ export const STAGE3_ARTIFACTS: LabArtifact[] = [
     technicalDetails:
       "JSON manifest file recording Job ID EB-2041, execution identity svc-exportbridge, package identifier PKG-8842, and target payload digest '7f83b1657ff1fc53b92dc18148a1d65dfc2d4b1fa3d677284addd200126d9069' for 4,418,240 bytes.",
     forensicSignificance:
-      "Demonstrates that the package acquired at 10:15:00 UTC (ART-ACQ-301) matches character-for-character the hash logged by the worker daemon when staging completed.",
+      "The manifest is not the package bitstream. Its recorded target SHA-256 and byte count corroborate the acquired archive, while the manifest's own digest identifies this JSON file.",
     tags: ["runtime manifest", "job EB-2041", "hash record"],
     expectedClassification: "original",
   },

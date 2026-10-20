@@ -9,6 +9,7 @@ import { AuthModal } from "../components/AuthModal";
 import { getSupabaseClient } from "../lib/supabase-client";
 import { submitStageServerFn } from "../api/submissions";
 import { getCompletedStagePrefix } from "../lib/stage-progress";
+import type { IncidentResponseState } from "../lib/stage5-response";
 import {
   LayoutDashboard,
   Network,
@@ -302,6 +303,7 @@ const CATEGORIES = ["ALL", "NETWORK", "DNS", "AUTH", "EXPORT", "SYSTEM"] as cons
 
 function Dashboard() {
   const [completed, setCompleted] = useState(0);
+  const [stage5Response, setStage5Response] = useState<IncidentResponseState | null>(null);
   const [view, setView] = useState<View>("overview");
   const [user, setUser] = useState<{
     id: string;
@@ -505,8 +507,10 @@ function Dashboard() {
               stage={activeStage}
               done={activeStage.id <= completed}
               authToken={authToken}
+              initialResponse={activeStage.id === 5 ? (stage5Response ?? undefined) : undefined}
               onBack={() => setView("overview")}
-              onComplete={() => {
+              onComplete={(response) => {
+                if (activeStage.id === 5 && response) setStage5Response(response);
                 setCompleted((value) => Math.max(value, activeStage.id));
                 setView("overview");
               }}
@@ -732,12 +736,14 @@ function StageView({
   authToken,
   onBack,
   onComplete,
+  initialResponse,
 }: {
   stage: Stage;
   done: boolean;
   authToken?: string | undefined;
   onBack: () => void;
-  onComplete: () => void;
+  onComplete: (response?: IncidentResponseState) => void;
+  initialResponse?: IncidentResponseState;
 }) {
   return (
     <div className="mx-auto max-w-6xl space-y-4">
@@ -757,7 +763,12 @@ function StageView({
       ) : stage.id === 4 ? (
         <WitnessInvestigation done={done} authToken={authToken} onComplete={onComplete} />
       ) : stage.id === 5 ? (
-        <IncidentResponse done={done} authToken={authToken} onComplete={onComplete} />
+        <IncidentResponse
+          done={done}
+          authToken={authToken}
+          initialResponse={initialResponse}
+          onComplete={onComplete}
+        />
       ) : (
         <Panel
           title={`Stage ${String(stage.id).padStart(2, "0")} - ${stage.title}`}

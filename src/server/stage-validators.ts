@@ -5,6 +5,7 @@ import {
   type ClaimStatus,
 } from "../lib/stage3-evidence";
 import { calculateIncidentResponseScore, type IncidentResponseState } from "../lib/stage5-response";
+import { calculateStage4Score, type Stage4ScoringPayload } from "../lib/stage4-scoring";
 
 // ============================================================================
 // AUTHORITATIVE SERVER-SIDE VALIDATION & SCORING FOR STAGES 1 TO 5
@@ -225,6 +226,7 @@ export type Stage3Payload = {
   selectedLimitationId?: string;
   selectedNextStepId?: string;
   alternativeTheory?: string;
+  verdictArtifacts?: string[];
 };
 
 export function validateStage3(payload: Stage3Payload): StageValidationResult {
@@ -241,7 +243,9 @@ export function validateStage3(payload: Stage3Payload): StageValidationResult {
           knownArtifactIds.has(item.artifactA) &&
           knownArtifactIds.has(item.artifactB) &&
           item.artifactA !== item.artifactB &&
-          ["identical", "altered_metadata", "incomparable"].includes(item.relation),
+          ["identical", "different", "altered_metadata", "incomparable", "corroborates"].includes(
+            item.relation,
+          ),
       )
     : [];
   const uniqueComparisons = Array.from(
@@ -259,6 +263,7 @@ export function validateStage3(payload: Stage3Payload): StageValidationResult {
   const selectedLimitationId = asText(safePayload.selectedLimitationId);
   const selectedNextStepId = asText(safePayload.selectedNextStepId);
   const alternativeTheory = asText(safePayload.alternativeTheory).trim();
+  const verdictArtifacts = uniqueIds(safePayload.verdictArtifacts);
 
   // 1. Provenance Score (up to 25 pts)
   let provenanceScore = 0;
@@ -275,15 +280,15 @@ export function validateStage3(payload: Stage3Payload): StageValidationResult {
   let integrityScore = 0;
   const hasBitstreamIdentity = comparisonsLedger.some(
     (c) =>
-      ((c.artifactA === "ART-ACQ-301" && c.artifactB === "ART-EXP-302") ||
-        (c.artifactA === "ART-EXP-302" && c.artifactB === "ART-ACQ-301")) &&
+      ((c.artifactA === "ART-ACQ-301" && c.artifactB === "ART-VER-307") ||
+        (c.artifactA === "ART-VER-307" && c.artifactB === "ART-ACQ-301")) &&
       c.relation === "identical",
   );
   const hasWorkingCopyDifference = comparisonsLedger.some(
     (c) =>
       ((c.artifactA === "ART-ACQ-301" && c.artifactB === "ART-WRK-304") ||
         (c.artifactA === "ART-WRK-304" && c.artifactB === "ART-ACQ-301")) &&
-      c.relation === "altered_metadata",
+      (c.relation === "different" || c.relation === "altered_metadata"),
   );
   const hasIncomparableOrDecoy = comparisonsLedger.some(
     (c) =>
@@ -317,6 +322,9 @@ export function validateStage3(payload: Stage3Payload): StageValidationResult {
   }
   const claim3Cites = claimAssessments["CLAIM-3"]?.citedArtifacts || [];
   if (claim3Cites.includes("ART-LOG-306")) {
+    citationScore += 4;
+  }
+  if (verdictArtifacts.includes("ART-ACQ-301") && verdictArtifacts.includes("ART-VER-307")) {
     citationScore += 4;
   }
   citationScore = Math.min(15, citationScore);
@@ -356,109 +364,38 @@ export function validateStage3(payload: Stage3Payload): StageValidationResult {
 // ----------------------------------------------------------------------------
 // STAGE 4: Witness Investigation
 // ----------------------------------------------------------------------------
-export type Stage4Payload = {
-  claimEvaluations?: Record<
-    string,
-    { status: string; citedEvidenceIds?: string[]; justification?: string }
-  >;
-  accountPreference?: string;
-  conferenceUnresolvedId?: string;
-  conferenceExplainedId?: string;
-  conferenceNextInquiryId?: string;
-};
+export type Stage4Payload = Stage4ScoringPayload;
 
 export function validateStage4(payload: Stage4Payload): StageValidationResult {
   const safePayload = asRecord(payload) as Stage4Payload;
-  const claimEvaluations = asRecord(safePayload.claimEvaluations) as NonNullable<
-    Stage4Payload["claimEvaluations"]
-  >;
-  const accountPreference = asText(safePayload.accountPreference);
-  const conferenceUnresolvedId = asText(safePayload.conferenceUnresolvedId);
-  const conferenceExplainedId = asText(safePayload.conferenceExplainedId);
-  const conferenceNextInquiryId = asText(safePayload.conferenceNextInquiryId);
-
-  // 1. Claims checks (max 30)
-  const expectedClaimStatuses: Record<string, string> = {
-    "CW-01": "corroborated",
-    "CW-02": "contradicted",
-    "CW-03": "contradicted",
-    "CW-04": "corroborated",
-    "CW-05": "corroborated",
-    "CW-06": "contradicted",
+  const normalizedPayload: Stage4Payload = {
+    claimEvaluations: asRecord(safePayload.claimEvaluations) as Stage4Payload["claimEvaluations"],
+    flaggedStatementIds: Array.isArray(safePayload.flaggedStatementIds)
+      ? safePayload.flaggedStatementIds.filter((id): id is string => typeof id === "string")
+      : [],
+    witnessNotes: asRecord(safePayload.witnessNotes) as Stage4Payload["witnessNotes"],
+    credibilityLedger: asRecord(
+      safePayload.credibilityLedger,
+    ) as Stage4Payload["credibilityLedger"],
+    accountPreference: asText(safePayload.accountPreference),
+    conferenceUnresolvedId: asText(safePayload.conferenceUnresolvedId),
+    conferenceExplainedId: asText(safePayload.conferenceExplainedId),
+    conferenceNextInquiryId: asText(safePayload.conferenceNextInquiryId),
+    conferenceFollowupStatementId: asText(safePayload.conferenceFollowupStatementId),
+    followupRationale: asText(safePayload.followupRationale),
   };
-
-  let claimScore = 0;
-  for (const [id, expected] of Object.entries(expectedClaimStatuses)) {
-    if (claimEvaluations[id]?.status === expected) {
-      claimScore += 5;
-    }
-  }
-
-  // 2. Correlation Score (max 20)
-  let correlationScore = 0;
-  const cw1Evidence = claimEvaluations["CW-01"]?.citedEvidenceIds || [];
-  if (cw1Evidence.includes("CFG-AUD-202")) correlationScore += 5;
-
-  const cw2Evidence = claimEvaluations["CW-02"]?.citedEvidenceIds || [];
-  if (cw2Evidence.includes("SCH-LOG-209") || cw2Evidence.includes("DOC-WEB-205")) {
-    correlationScore += 5;
-  }
-
-  const cw3Evidence = claimEvaluations["CW-03"]?.citedEvidenceIds || [];
-  if (cw3Evidence.includes("ART-PRX-312") || cw3Evidence.includes("NET-13")) {
-    correlationScore += 5;
-  }
-
-  const cw5Evidence = claimEvaluations["CW-05"]?.citedEvidenceIds || [];
-  if (cw5Evidence.includes("ART-LOG-306")) correlationScore += 5;
-
-  correlationScore = Math.min(20, correlationScore);
-
-  // 3. Citations & Justifications (max 20)
-  let citationScore = 0;
-  for (const id of Object.keys(expectedClaimStatuses)) {
-    const evaluation = claimEvaluations[id];
-    if (
-      typeof evaluation?.justification === "string" &&
-      evaluation.justification.trim().length >= 25
-    ) {
-      citationScore += 3.5;
-    }
-  }
-  citationScore = Math.min(20, Math.round(citationScore));
-
-  // 4. Credibility & Account Preference (max 15)
-  let credibilityScore = 0;
-  if (accountPreference === "ACCT-01") credibilityScore += 15;
-  else if (accountPreference === "ACCT-02") credibilityScore += 6;
-
-  // 5. Conference Next Steps (max 15)
-  let conferenceScore = 0;
-  if (conferenceUnresolvedId === "CONF-UNRES-1") conferenceScore += 5;
-  if (conferenceExplainedId === "CONF-EXP-1") conferenceScore += 5;
-  if (conferenceNextInquiryId === "CONF-INQ-1") conferenceScore += 5;
-
-  const score = Math.min(
-    100,
-    claimScore + correlationScore + citationScore + credibilityScore + conferenceScore,
-  );
-  const passed = score >= 50;
+  const evaluation = calculateStage4Score(normalizedPayload);
+  const { score, breakdown, passed } = evaluation;
 
   return {
     stageId: 4,
     score,
     maxScore: 100,
     passed,
-    breakdown: {
-      claimScore,
-      correlationScore,
-      citationScore,
-      credibilityScore,
-      conferenceScore,
-    },
+    breakdown: { ...breakdown, ...evaluation.requirements },
     remarks: passed
       ? "Stage 04 Witness statement evaluation corroborated."
-      : "Incomplete corroboration of witness claims.",
+      : "Complete the witness notes, claim assessments, credibility ledger, and case conference before submitting.",
   };
 }
 

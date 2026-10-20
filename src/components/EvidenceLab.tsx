@@ -42,7 +42,7 @@ type ComparisonRecord = {
   id: string;
   slotAId: string;
   slotBId: string;
-  verdict: "identical" | "different" | "incomparable";
+  verdict: "identical" | "different" | "incomparable" | "corroborates";
   notes: string;
   timestamp: string;
 };
@@ -75,7 +75,7 @@ export function EvidenceLab({
 
   // Phase B: Integrity Comparison Tray State
   const [slotAId, setSlotAId] = useState<string>("ART-ACQ-301");
-  const [slotBId, setSlotBId] = useState<string>("ART-EXP-302");
+  const [slotBId, setSlotBId] = useState<string>("ART-VER-307");
   const [comparisonVerdict, setComparisonVerdict] = useState<
     "identical" | "different" | "incomparable" | ""
   >("");
@@ -131,7 +131,12 @@ export function EvidenceLab({
   // Phase completion calculations
   const totalClassified = Object.keys(classifications).length;
   const isPhaseAComplete = totalClassified >= 10;
-  const isPhaseBComplete = comparisonsLedger.length >= 2;
+  const distinctComparisonCount = new Set(
+    comparisonsLedger.map((comparison) =>
+      [comparison.slotAId, comparison.slotBId].sort().join(":"),
+    ),
+  ).size;
+  const isPhaseBComplete = distinctComparisonCount >= 2;
   const isPhaseCComplete = Object.values(claimAssessments).every(
     (c) => c.status !== "" && c.citedArtifacts.length > 0 && c.justification.trim().length >= 15,
   );
@@ -158,26 +163,25 @@ export function EvidenceLab({
     let integrityScore = 0;
     const hasIdenticalComparison = comparisonsLedger.some(
       (c) =>
-        ((c.slotAId === "ART-ACQ-301" && c.slotBId === "ART-EXP-302") ||
-          (c.slotAId === "ART-EXP-302" && c.slotBId === "ART-ACQ-301") ||
-          (c.slotAId === "ART-ACQ-301" && c.slotBId === "ART-VER-307")) &&
+        ((c.slotAId === "ART-ACQ-301" && c.slotBId === "ART-VER-307") ||
+          (c.slotAId === "ART-VER-307" && c.slotBId === "ART-ACQ-301")) &&
         c.verdict === "identical",
     );
     const hasDifferentComparison = comparisonsLedger.some(
       (c) =>
         ((c.slotAId === "ART-ACQ-301" && c.slotBId === "ART-WRK-304") ||
-          (c.slotAId === "ART-ACQ-301" && c.slotBId === "ART-OBJ-303")) &&
+          (c.slotBId === "ART-ACQ-301" && c.slotAId === "ART-WRK-304")) &&
         c.verdict === "different",
     );
     const hasIncomparableOrDecoy = comparisonsLedger.some(
       (c) =>
         (c.slotAId === "ART-DUP-305" || c.slotBId === "ART-DUP-305") &&
-        (c.verdict === "different" || c.verdict === "incomparable"),
+        c.verdict === "incomparable",
     );
 
     if (hasIdenticalComparison) integrityScore += 10;
     if (hasDifferentComparison) integrityScore += 10;
-    if (hasIncomparableOrDecoy || comparisonsLedger.length >= 3) integrityScore += 5;
+    if (hasIncomparableOrDecoy || distinctComparisonCount >= 3) integrityScore += 5;
     integrityScore = Math.min(25, integrityScore);
 
     // 3. Claims Classifications score (up to 20 pts: 5 pts each)
@@ -205,10 +209,7 @@ export function EvidenceLab({
       citationScore += 4;
     }
     // Check verdict citations
-    if (
-      verdictArtifacts.includes("ART-ACQ-301") &&
-      (verdictArtifacts.includes("ART-EXP-302") || verdictArtifacts.includes("ART-VER-307"))
-    ) {
+    if (verdictArtifacts.includes("ART-ACQ-301") && verdictArtifacts.includes("ART-VER-307")) {
       citationScore += 4;
     }
     citationScore = Math.min(15, citationScore);
@@ -245,6 +246,7 @@ export function EvidenceLab({
   }, [
     classifications,
     comparisonsLedger,
+    distinctComparisonCount,
     claimAssessments,
     selectedFindingId,
     selectedLimitationId,
@@ -270,7 +272,14 @@ export function EvidenceLab({
       notes: comparisonNotes.trim() || "Verified via hash & size comparison in lab workbench.",
       timestamp: new Date().toISOString().substring(11, 19) + " UTC",
     };
-    setComparisonsLedger((prev) => [newRecord, ...prev]);
+    setComparisonsLedger((prev) => [
+      newRecord,
+      ...prev.filter(
+        (record) =>
+          [record.slotAId, record.slotBId].sort().join(":") !==
+          [newRecord.slotAId, newRecord.slotBId].sort().join(":"),
+      ),
+    ]);
     setComparisonNotes("");
     setComparisonVerdict("");
   };
@@ -289,8 +298,7 @@ export function EvidenceLab({
             comparisonsLedger: comparisonsLedger.map((comparison) => ({
               artifactA: comparison.slotAId,
               artifactB: comparison.slotBId,
-              relation:
-                comparison.verdict === "different" ? "altered_metadata" : comparison.verdict,
+              relation: comparison.verdict,
             })),
             claimAssessments: Object.fromEntries(
               Object.entries(claimAssessments)
@@ -301,6 +309,7 @@ export function EvidenceLab({
             selectedLimitationId,
             selectedNextStepId,
             alternativeTheory,
+            verdictArtifacts,
           },
         },
       });
@@ -773,7 +782,7 @@ export function EvidenceLab({
                 onClick={() => loadPresetPair("ART-ACQ-301", "ART-EXP-302")}
                 className="border border-zinc-700 bg-black/40 px-2.5 py-1 font-mono text-[10px] text-cyan-300 hover:border-cyan-500"
               >
-                Staged Image vs Worker Manifest
+                Staged Archive vs Manifest (target digest corroboration)
               </button>
               <button
                 onClick={() => loadPresetPair("ART-ACQ-301", "ART-VER-307")}
@@ -1023,8 +1032,13 @@ export function EvidenceLab({
                     },
                     {
                       key: "different" as const,
-                      label: "Different Versions / Modified Content",
+                      label: "Different Files / Digests",
                       activeClass: "border-amber-500 bg-amber-500/20 text-amber-300",
+                    },
+                    {
+                      key: "corroborates" as const,
+                      label: "Related Evidence; Manifest Records Package Digest",
+                      activeClass: "border-sky-500 bg-sky-500/20 text-sky-300",
                     },
                     {
                       key: "incomparable" as const,
@@ -1076,7 +1090,7 @@ export function EvidenceLab({
                 VERIFIED COMPARISON LEDGER ({comparisonsLedger.length} RECORDED)
               </span>
               <span className="font-mono text-[10px] text-muted-foreground">
-                Minimum 2 comparisons required
+                Minimum 2 distinct comparisons required
               </span>
             </div>
 

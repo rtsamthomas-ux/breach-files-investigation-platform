@@ -389,13 +389,16 @@ describe("Stage 5 — IncidentResponse UI & Interaction", () => {
     expect(screen.getByDisplayValue("Request partner SFTP transmission logs.")).toBeInTheDocument();
   });
 
-  it("supports initialPhase prop for direct review of completion results", () => {
+  it("does not show a fabricated report when completed response details are missing", () => {
     const onComplete = vi.fn();
     render(<IncidentResponse done={true} onComplete={onComplete} initialPhase={5} />);
 
-    expect(screen.getByText(/THE GLASSHOUSE INCIDENT — RESPONSE COMPLETE/i)).toBeInTheDocument();
-    expect(screen.getAllByText(/CASE CONCLUDED/i).length).toBeGreaterThanOrEqual(1);
-    expect(screen.getByText(/CASE 07 INVESTIGATION & RESPONSE COMPLETE/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/report is hidden to avoid showing an inaccurate score/i),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(/THE GLASSHOUSE INCIDENT — RESPONSE COMPLETE/i),
+    ).not.toBeInTheDocument();
   });
 
   it("handles reset stage confirmation workflow", () => {
