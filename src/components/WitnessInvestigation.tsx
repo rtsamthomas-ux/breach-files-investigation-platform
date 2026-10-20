@@ -206,7 +206,7 @@ export function WitnessInvestigation({
           ? result.remarks
           : result.persistedToSupabase
             ? `Verified and saved (${result.score}/100).`
-            : `Verified (${result.score}/100). Sign in and configure Supabase to save progress.`,
+            : `Verified for this session (${result.score}/100). Progress will not sync across sessions until cloud storage is configured.`,
       );
       setSubmitted(result.success && result.passed);
     } catch {

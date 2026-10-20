@@ -278,11 +278,11 @@ export function validateStage3(payload: Stage3Payload): StageValidationResult {
 
   // 2. Hash Integrity Score (up to 25 pts)
   let integrityScore = 0;
-  const hasBitstreamIdentity = comparisonsLedger.some(
+  const hasDigestCorroboration = comparisonsLedger.some(
     (c) =>
       ((c.artifactA === "ART-ACQ-301" && c.artifactB === "ART-VER-307") ||
         (c.artifactA === "ART-VER-307" && c.artifactB === "ART-ACQ-301")) &&
-      c.relation === "identical",
+      c.relation === "corroborates",
   );
   const hasWorkingCopyDifference = comparisonsLedger.some(
     (c) =>
@@ -296,7 +296,7 @@ export function validateStage3(payload: Stage3Payload): StageValidationResult {
       c.relation === "incomparable",
   );
 
-  if (hasBitstreamIdentity) integrityScore += 10;
+  if (hasDigestCorroboration) integrityScore += 10;
   if (hasWorkingCopyDifference) integrityScore += 10;
   if (hasIncomparableOrDecoy || uniqueComparisons.length >= 3) integrityScore += 5;
   integrityScore = Math.min(25, integrityScore);
@@ -369,14 +369,16 @@ export type Stage4Payload = Stage4ScoringPayload;
 export function validateStage4(payload: Stage4Payload): StageValidationResult {
   const safePayload = asRecord(payload) as Stage4Payload;
   const normalizedPayload: Stage4Payload = {
-    claimEvaluations: asRecord(safePayload.claimEvaluations) as Stage4Payload["claimEvaluations"],
+    claimEvaluations: asRecord(safePayload.claimEvaluations) as NonNullable<
+      Stage4Payload["claimEvaluations"]
+    >,
     flaggedStatementIds: Array.isArray(safePayload.flaggedStatementIds)
       ? safePayload.flaggedStatementIds.filter((id): id is string => typeof id === "string")
       : [],
-    witnessNotes: asRecord(safePayload.witnessNotes) as Stage4Payload["witnessNotes"],
-    credibilityLedger: asRecord(
-      safePayload.credibilityLedger,
-    ) as Stage4Payload["credibilityLedger"],
+    witnessNotes: asRecord(safePayload.witnessNotes) as NonNullable<Stage4Payload["witnessNotes"]>,
+    credibilityLedger: asRecord(safePayload.credibilityLedger) as NonNullable<
+      Stage4Payload["credibilityLedger"]
+    >,
     accountPreference: asText(safePayload.accountPreference),
     conferenceUnresolvedId: asText(safePayload.conferenceUnresolvedId),
     conferenceExplainedId: asText(safePayload.conferenceExplainedId),

@@ -7,6 +7,7 @@ import {
   validateStage5,
 } from "../server/stage-validators";
 import { INITIAL_RESPONSE_STATE } from "../lib/stage5-response";
+import { STAGE3_ARTIFACTS } from "../lib/stage3-evidence";
 
 describe("Authoritative Server-side Stage Validators", () => {
   describe("Stage 1 - Network Investigation", () => {
@@ -113,6 +114,31 @@ describe("Authoritative Server-side Stage Validators", () => {
           { artifactA: "ART-UNKNOWN-3", artifactB: "ART-UNKNOWN-4", relation: "identical" },
         ],
       });
+      expect(result.breakdown["integrityScore"]).toBe(0);
+    });
+
+    it("awards digest-corroboration points without calling a verification record byte-identical", () => {
+      const result = validateStage3({
+        comparisonsLedger: [
+          { artifactA: "ART-ACQ-301", artifactB: "ART-VER-307", relation: "corroborates" },
+        ],
+      });
+
+      expect(result.breakdown["integrityScore"]).toBe(10);
+      const primaryImage = STAGE3_ARTIFACTS.find((artifact) => artifact.id === "ART-ACQ-301")!;
+      const verificationRecord = STAGE3_ARTIFACTS.find(
+        (artifact) => artifact.id === "ART-VER-307",
+      )!;
+      expect(primaryImage.sizeBytes).not.toBe(verificationRecord.sizeBytes);
+    });
+
+    it("does not award byte-identity points for the hash record itself", () => {
+      const result = validateStage3({
+        comparisonsLedger: [
+          { artifactA: "ART-ACQ-301", artifactB: "ART-VER-307", relation: "identical" },
+        ],
+      });
+
       expect(result.breakdown["integrityScore"]).toBe(0);
     });
   });

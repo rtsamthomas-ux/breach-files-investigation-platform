@@ -212,7 +212,7 @@ export function IncidentResponse({
           ? result.remarks
           : result.persistedToSupabase
             ? `Response verified and saved (${result.score}/100).`
-            : `Response verified (${result.score}/100). Sign in and configure Supabase to save progress.`,
+            : `Response verified for this session (${result.score}/100). Progress will not sync across sessions until cloud storage is configured.`,
       );
       if (result.success && result.passed) {
         setIsSubmitted(true);

@@ -52,6 +52,8 @@ describe("Stage 3 — Evidence Analysis & Lab Corpus Integrity", () => {
 
     // Byte size of primary acquisition
     expect(primaryAcq.sizeBytes).toBe(4418240);
+    expect(independentVerify.sizeBytes).toBe(128);
+    expect(independentVerify.forensicSignificance).toContain("not itself a copy of the image");
   });
 
   it("verifies hash and size discrepancies between working copy and original are realistic", () => {

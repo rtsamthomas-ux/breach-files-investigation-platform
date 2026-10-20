@@ -16,7 +16,7 @@
  *    - ART-WRK-304: Verified Working Copy (Analyst triage copy with pax headers added during local re-tar).
  *    - ART-DUP-305: Unrelated / Insufficiently Connected (1.2 MB marketing catalog with identical filename).
  *    - ART-LOG-306: Original Evidence (Collector flow log with -120.4s NTP clock offset).
- *    - ART-VER-307: Original Evidence (Independent secondary SHA-256 verification of primary image).
+ *    - ART-VER-307: Original Evidence (Independent SHA-256 record verifying the primary image's digest; it is not the image itself).
  *    - ART-COC-308: Original Evidence (Signed chain of custody handoff record).
  *    - ART-EGR-309: Provenance Incomplete (Truncated sampled perimeter firewall pcap without payloads).
  *    - ART-EVD-310: Original Evidence (Cryptographically sealed evidence container inventory).
@@ -30,8 +30,9 @@
  *      * These are different files: a 4.4 MB archive and a 2.8 KB JSON manifest.
  *      * The manifest's recorded target digest and byte count corroborate the acquired archive.
  *    - ART-ACQ-301 vs ART-VER-307:
- *      * Bit-for-bit identical (SHA-256: 7f83b165...d9069).
- *      * Proves bitstream integrity preserved across chain of custody.
+ *      * The verification record reports the same SHA-256 target digest as the primary image.
+ *      * The 128-byte verification record is not byte-identical to the 4,418,240-byte image.
+ *      * Its matching target digest corroborates the image's bitstream integrity across custody.
  *    - ART-ACQ-301 vs ART-WRK-304:
  *      * Different digests (9c1b48... vs 7f83b1...).
  *      * Analyst added 72 bytes of pax extended headers; NOT malicious tampering.
@@ -244,7 +245,7 @@ export const STAGE3_ARTIFACTS: LabArtifact[] = [
     technicalDetails:
       "Target file: raw bitstream replica of ART-ACQ-301. Tool: GNU coreutils sha256sum on offline Alpine Linux environment. Result: 7f83b1657ff1fc53b92dc18148a1d65dfc2d4b1fa3d677284addd200126d9069.",
     forensicSignificance:
-      "Confirms bit-for-bit authenticity of the primary evidence image, eliminating possibility of collector tool corruption.",
+      "Confirms that an independent calculation of the primary evidence image produced the recorded digest, eliminating the possibility of collector tool corruption. This 128-byte verification record is not itself a copy of the image.",
     tags: ["independent verification", "airgapped", "cryptographic proof"],
     expectedClassification: "original",
   },
@@ -398,7 +399,7 @@ export const INVESTIGATIVE_CLAIMS: InvestigativeClaim[] = [
     expectedStatus: "supported",
     keyArtifactIds: ["ART-ACQ-301", "ART-EXP-302", "ART-VER-307"],
     explanation:
-      "Supported: The SHA-256 digest (7f83b1...d9069) and byte count (4,418,240) match exactly across the worker manifest, triage acquisition image, and independent verification.",
+      "Supported: The worker manifest and triage acquisition report the same target digest (7f83b1...d9069) and byte count (4,418,240); the independent verification record separately corroborates that target digest. The verification record itself is not byte-identical to the archive.",
   },
   {
     id: "CLAIM-2",

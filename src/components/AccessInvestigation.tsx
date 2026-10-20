@@ -144,7 +144,7 @@ export function AccessInvestigation({
           ? result.remarks
           : result.persistedToSupabase
             ? `Verified and saved (${result.score}/100).`
-            : `Verified (${result.score}/100). Sign in and configure Supabase to save progress.`,
+            : `Verified for this session (${result.score}/100). Progress will not sync across sessions until cloud storage is configured.`,
       );
       setSubmitted(result.success && result.passed);
     } catch {
@@ -792,8 +792,8 @@ export function AccessInvestigation({
 
         <div className="mt-4 flex items-start gap-2 text-[10px] leading-relaxed text-muted-foreground">
           <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" />
-          Submitted reports are checked by the server. Sign in with Supabase configured to save
-          stage progress to your account.
+          Reports are checked by the server. Without cloud storage configured, progress remains in
+          this session and will not sync across sessions.
         </div>
         {submissionMessage && (
           <div className="mt-3 font-mono text-xs text-muted-foreground" role="status">

@@ -507,7 +507,9 @@ function Dashboard() {
               stage={activeStage}
               done={activeStage.id <= completed}
               authToken={authToken}
-              initialResponse={activeStage.id === 5 ? (stage5Response ?? undefined) : undefined}
+              {...(activeStage.id === 5 && stage5Response
+                ? { initialResponse: stage5Response }
+                : {})}
               onBack={() => setView("overview")}
               onComplete={(response) => {
                 if (activeStage.id === 5 && response) setStage5Response(response);
@@ -766,7 +768,7 @@ function StageView({
         <IncidentResponse
           done={done}
           authToken={authToken}
-          initialResponse={initialResponse}
+          {...(initialResponse ? { initialResponse } : {})}
           onComplete={onComplete}
         />
       ) : (
@@ -1347,8 +1349,9 @@ function NetworkInvestigation({
 
         <div className="mt-4 flex items-start gap-2 text-[10px] leading-relaxed text-muted-foreground">
           <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" />
-          Scores and stage completions are validated on the server. Connect your Supabase keys to
-          synchronize across sessions and rank on the live leaderboard.
+          Scores and stage completions are validated on the server. Cloud progress sync and live
+          leaderboard rankings require Supabase configuration; without it, progress stays in this
+          session.
         </div>
       </Panel>
 

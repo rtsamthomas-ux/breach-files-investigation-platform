@@ -77,7 +77,7 @@ export function EvidenceLab({
   const [slotAId, setSlotAId] = useState<string>("ART-ACQ-301");
   const [slotBId, setSlotBId] = useState<string>("ART-VER-307");
   const [comparisonVerdict, setComparisonVerdict] = useState<
-    "identical" | "different" | "incomparable" | ""
+    "identical" | "different" | "incomparable" | "corroborates" | ""
   >("");
   const [comparisonNotes, setComparisonNotes] = useState<string>("");
   const [comparisonsLedger, setComparisonsLedger] = useState<ComparisonRecord[]>([]);
@@ -161,11 +161,11 @@ export function EvidenceLab({
     // 2. Integrity Verification score (up to 25 pts)
     // Checks comparisons recorded in ledger
     let integrityScore = 0;
-    const hasIdenticalComparison = comparisonsLedger.some(
+    const hasDigestCorroboration = comparisonsLedger.some(
       (c) =>
         ((c.slotAId === "ART-ACQ-301" && c.slotBId === "ART-VER-307") ||
           (c.slotAId === "ART-VER-307" && c.slotBId === "ART-ACQ-301")) &&
-        c.verdict === "identical",
+        c.verdict === "corroborates",
     );
     const hasDifferentComparison = comparisonsLedger.some(
       (c) =>
@@ -179,7 +179,7 @@ export function EvidenceLab({
         c.verdict === "incomparable",
     );
 
-    if (hasIdenticalComparison) integrityScore += 10;
+    if (hasDigestCorroboration) integrityScore += 10;
     if (hasDifferentComparison) integrityScore += 10;
     if (hasIncomparableOrDecoy || distinctComparisonCount >= 3) integrityScore += 5;
     integrityScore = Math.min(25, integrityScore);
@@ -318,7 +318,7 @@ export function EvidenceLab({
           ? result.remarks
           : result.persistedToSupabase
             ? `Verified and saved (${result.score}/100).`
-            : `Verified (${result.score}/100). Sign in and configure Supabase to save progress.`,
+            : `Verified for this session (${result.score}/100). Progress will not sync across sessions until cloud storage is configured.`,
       );
       setSubmitted(result.success && result.passed);
     } catch {
@@ -767,10 +767,10 @@ export function EvidenceLab({
               Phase 2 — Cryptographic Hash & Byte Integrity Workbench
             </h3>
             <p className="mt-1 text-xs text-muted-foreground">
-              Perform hands-on side-by-side artifact integrity verification. Determine whether two
-              artifacts are byte-identical, different versions, or incomparable. Distinguish
-              matching filenames from matching bytes, and benign analysis modifications from
-              malicious tampering.
+              Perform hands-on side-by-side artifact integrity verification. Distinguish
+              byte-identical files from digest corroboration, different versions, and incomparable
+              records. A verification record can confirm a target file's hash without being
+              byte-identical to that file.
             </p>
 
             {/* Quick-Load Preset Pairs */}
@@ -821,7 +821,11 @@ export function EvidenceLab({
                 </span>
                 <select
                   value={slotAId}
-                  onChange={(e) => setSlotAId(e.target.value)}
+                  onChange={(e) => {
+                    setSlotAId(e.target.value);
+                    setComparisonVerdict("");
+                    setComparisonNotes("");
+                  }}
                   className="border border-zinc-700 bg-black px-2 py-1 font-mono text-xs text-foreground outline-none focus:border-cyan-500"
                 >
                   {STAGE3_ARTIFACTS.map((a) => (
@@ -888,7 +892,11 @@ export function EvidenceLab({
                 </span>
                 <select
                   value={slotBId}
-                  onChange={(e) => setSlotBId(e.target.value)}
+                  onChange={(e) => {
+                    setSlotBId(e.target.value);
+                    setComparisonVerdict("");
+                    setComparisonNotes("");
+                  }}
                   className="border border-zinc-700 bg-black px-2 py-1 font-mono text-xs text-foreground outline-none focus:border-cyan-500"
                 >
                   {STAGE3_ARTIFACTS.map((a) => (
@@ -962,8 +970,13 @@ export function EvidenceLab({
                 {slotAArtifact.sha256Digest && slotBArtifact.sha256Digest ? (
                   slotAArtifact.sha256Digest === slotBArtifact.sha256Digest ? (
                     <span className="flex items-center gap-1.5 border border-emerald-500/50 bg-emerald-500/10 px-3 py-1 font-mono text-xs font-bold text-emerald-400">
-                      <CheckCircle2 className="h-4 w-4" /> CRYPTOGRAPHIC BITSTREAM MATCH (100%
-                      IDENTICAL)
+                      <CheckCircle2 className="h-4 w-4" />
+                      {slotAArtifact.type === "verification" ||
+                      slotBArtifact.type === "verification"
+                        ? "REFERENCE DIGEST MATCH — TARGET HASH VERIFIED"
+                        : slotAArtifact.sizeBytes === slotBArtifact.sizeBytes
+                          ? "SHA-256 AND BYTE SIZE MATCH"
+                          : "DIGEST MATCH, BUT BYTE SIZES DIFFER — VERIFY METADATA"}
                     </span>
                   ) : (
                     <span className="flex items-center gap-1.5 border border-amber-500/50 bg-amber-500/10 px-3 py-1 font-mono text-xs font-bold text-amber-400">
@@ -1027,7 +1040,7 @@ export function EvidenceLab({
                   {[
                     {
                       key: "identical" as const,
-                      label: "Byte-Identical (Cryptographic Match)",
+                      label: "Byte-Identical (Matching Hash & Size)",
                       activeClass: "border-emerald-500 bg-emerald-500/20 text-emerald-300",
                     },
                     {
@@ -1037,7 +1050,7 @@ export function EvidenceLab({
                     },
                     {
                       key: "corroborates" as const,
-                      label: "Related Evidence; Manifest Records Package Digest",
+                      label: "Reference Digest Corroborates Target File",
                       activeClass: "border-sky-500 bg-sky-500/20 text-sky-300",
                     },
                     {
@@ -1045,19 +1058,28 @@ export function EvidenceLab({
                       label: "Incomparable with Available Evidence",
                       activeClass: "border-zinc-500 bg-zinc-700 text-zinc-200",
                     },
-                  ].map((btn) => (
-                    <button
-                      key={btn.key}
-                      onClick={() => setComparisonVerdict(btn.key)}
-                      className={`border px-3 py-1.5 font-mono text-xs font-bold transition-all ${
-                        comparisonVerdict === btn.key
-                          ? btn.activeClass
-                          : "border-zinc-800 bg-black/40 text-muted-foreground hover:border-zinc-700"
-                      }`}
-                    >
-                      {btn.label}
-                    </button>
-                  ))}
+                  ]
+                    .filter(
+                      (btn) =>
+                        !(
+                          btn.key === "identical" &&
+                          (slotAArtifact.type === "verification" ||
+                            slotBArtifact.type === "verification")
+                        ),
+                    )
+                    .map((btn) => (
+                      <button
+                        key={btn.key}
+                        onClick={() => setComparisonVerdict(btn.key)}
+                        className={`border px-3 py-1.5 font-mono text-xs font-bold transition-all ${
+                          comparisonVerdict === btn.key
+                            ? btn.activeClass
+                            : "border-zinc-800 bg-black/40 text-muted-foreground hover:border-zinc-700"
+                        }`}
+                      >
+                        {btn.label}
+                      </button>
+                    ))}
                 </div>
 
                 <div className="mt-3">
